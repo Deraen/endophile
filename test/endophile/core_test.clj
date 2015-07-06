@@ -69,4 +69,10 @@
   (is (= [{:tag :h1, :content [{:tag :a, :attrs {:name "foo" :href "#foo"}, :content ["Foo"]}]}]
          (to-clj (mp "# Foo" {:extensions {:anchorlinks true}}))))
   (is (= [[:h1 [:a {:name "foo" :href "#foo"} "Foo"]]]
-         (md2h/to-hiccup (mp "# Foo" {:extensions {:anchorlinks true}})))))
+         (md2h/to-hiccup (mp "# Foo" {:extensions {:anchorlinks true}}))))
+
+  (testing "Alternative anchor style"
+    (is (= [{:tag :h1 :content [{:tag :a, :attrs {:name "foo"}} "Foo"]}]
+           (to-clj (mp "# Foo" {:extensions {:anchorlinks true}}) {:anchor-wrap false})))
+    (is (= [[:h1 [:a {:name "foo"}] "Foo"]]
+           (md2h/to-hiccup (mp "# Foo" {:extensions {:anchorlinks true}}) {:anchor-wrap false})))))

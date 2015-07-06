@@ -92,7 +92,13 @@
 (extend-type HeaderNode AstToHiccup
   (to-hiccup' [node opts]
     (vec (cons (keyword (str "h" (.getLevel node)))
-               (clj-contents node opts)))))
+               (if (:anchor-wrap opts true)
+                 (clj-contents node opts)
+                 (let [anchor (first (.getChildren node))]
+                   (if (instance? AnchorLinkNode anchor)
+                     (list [:a {:name (.getName anchor)}]
+                           (.getText anchor))
+                     (clj-contents node opts))))))))
 
 (extend-type HtmlBlockNode AstToHiccup
   (to-hiccup' [node opts]

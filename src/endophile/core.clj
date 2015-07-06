@@ -135,7 +135,13 @@
 (extend-type HeaderNode AstToClj
   (to-clj' [node opts]
     {:tag (keyword (str "h" (.getLevel node)))
-     :content (clj-contents node opts)}))
+     :content (if (:anchor-wrap opts true)
+                (clj-contents node opts)
+                (let [anchor (first (.getChildren node))]
+                  (if (instance? AnchorLinkNode anchor)
+                    (list {:tag :a :attrs {:name (.getName anchor)}}
+                          (.getText anchor))
+                    (clj-contents node opts))))}))
 
 (extend-type HtmlBlockNode AstToClj
   (to-clj' [node opts]
