@@ -35,81 +35,85 @@
 (declare ^:dynamic *references*)
 
 (defprotocol AstToHiccup
-  (to-hiccup [node]))
+  (to-hiccup' [node opts]))
 
-(defn clj-contents [node]
-  (doall (flatten* (map to-hiccup (seq (.getChildren node))))))
+(defn to-hiccup
+  ([node] (to-hiccup' node {}))
+  ([node opts] (to-hiccup' node opts)))
+
+(defn clj-contents [node opts]
+  (doall (flatten* (map #(to-hiccup' % opts) (seq (.getChildren node))))))
 
 (extend-type SuperNode AstToHiccup
-  (to-hiccup [node] (clj-contents node)))
+  (to-hiccup' [node opts] (clj-contents node opts)))
 
 (extend-type RootNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (binding [*references*
               (into {}
                     (for [ref (.getReferences node)]
-                      [(first (clj-contents ref)) ref]))]
-     (clj-contents node))))
+                      [(first (clj-contents ref opts)) ref]))]
+     (clj-contents node opts))))
 
 (extend-type BulletListNode AstToHiccup
-  (to-hiccup [node] (vec (cons :ul (clj-contents node)))))
+  (to-hiccup' [node opts] (vec (cons :ul (clj-contents node opts)))))
 
 (extend-type ListItemNode AstToHiccup
-  (to-hiccup [node]
-    (vec (cons :li (flatten* (map to-hiccup (seq (.getChildren node))))))))
+  (to-hiccup' [node opts]
+    (vec (cons :li (flatten* (map #(to-hiccup' % opts) (seq (.getChildren node))))))))
 
 (extend-type TextNode AstToHiccup
-  (to-hiccup [node] (xml-str (.getText node))))
+  (to-hiccup' [node opts] (xml-str (.getText node))))
 
 (extend-type AutoLinkNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     [:a {:href (.getText node)}
      (xml-str (.getText node))]))
 
 (extend-type BlockQuoteNode AstToHiccup
-  (to-hiccup [node]
-    (vec (cons :blockquote (clj-contents node)))))
+  (to-hiccup' [node opts]
+    (vec (cons :blockquote (clj-contents node opts)))))
 
 (extend-type CodeNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     [:code (verbatim-xml-str (.getText node))]))
 
 (extend-type ExpImageNode AstToHiccup
-  (to-hiccup [node]
-    [:img {:src (.url node) :title (.title node) :alt (apply str (clj-contents node))}]))
+  (to-hiccup' [node opts]
+    [:img {:src (.url node) :title (.title node) :alt (apply str (clj-contents node opts))}]))
 
 (extend-type ExpLinkNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (vec
      (concat
       [:a (a-attrs {:href (.url node) :title (.title node)})]
-      (clj-contents node)))))
+      (clj-contents node opts)))))
 
 (extend-type HeaderNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (vec (cons (keyword (str "h" (.getLevel node)))
-               (clj-contents node)))))
+               (clj-contents node opts)))))
 
 (extend-type HtmlBlockNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (html-snippet (.getText node))))
 
 (extend-type InlineHtmlNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (html-snippet (.getText node))))
 
 (extend-type MailLinkNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (vec (concat [:a {:href (str "mailto:" (.getText node))}]
-                 (clj-contents node)))))
+                 (clj-contents node opts)))))
 
 (extend-type OrderedListNode AstToHiccup
-  (to-hiccup [node]
-    (vec (cons :ol (clj-contents node)))))
+  (to-hiccup' [node opts]
+    (vec (cons :ol (clj-contents node opts)))))
 
 (extend-type ParaNode AstToHiccup
-  (to-hiccup [node]
-    (vec (cons :p (clj-contents node)))))
+  (to-hiccup' [node opts]
+    (vec (cons :p (clj-contents node opts)))))
 
 (def qts
   {QuotedNode$Type/DoubleAngle [\u00AB \u00BB]
@@ -117,10 +121,10 @@
    QuotedNode$Type/Single [\u2018 \u2019]})
 
 (extend-type QuotedNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (vec (cons :p (flatten*
                    (let [q (qts (.getType node))]
-                     (list (q 0) (clj-contents node) (q 1))))))))
+                     (list (q 0) (clj-contents node opts) (q 1))))))))
 
 (def simple-nodes
   {SimpleNode$Type/Apostrophe \'
@@ -132,25 +136,25 @@
    SimpleNode$Type/Nbsp \u00A0})
 
 (extend-type SimpleNode AstToHiccup
-  (to-hiccup [node] (simple-nodes (.getType node))))
+  (to-hiccup' [node opts] (simple-nodes (.getType node))))
 
 (extend-type SpecialTextNode AstToHiccup
-  (to-hiccup [node] (xml-str (.getText node))))
+  (to-hiccup' [node opts] (xml-str (.getText node))))
 
 (extend-type StrongEmphSuperNode AstToHiccup
-  (to-hiccup [node]
-    (vec (cons (if (.isStrong node) :strong :em) (clj-contents node)))))
+  (to-hiccup' [node opts]
+    (vec (cons (if (.isStrong node) :strong :em) (clj-contents node opts)))))
 
 (extend-type StrikeNode AstToHiccup
-  (to-hiccup [node]
-    (vec (cons :del (clj-contents node)))))
+  (to-hiccup' [node opts]
+    (vec (cons :del (clj-contents node opts)))))
 
 (extend-type AnchorLinkNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     (vector :a {:name (.getName node) :href (str "#" (.getName node))} (xml-str (.getText node)))))
 
 (extend-type VerbatimNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     [:pre [:code
            (when-let [c (.getType node)]
              (if-not (or (str/blank? c)
@@ -159,10 +163,10 @@
            (verbatim-xml-str (.getText node))]]))
 
 (extend-type RefLinkNode AstToHiccup
-  (to-hiccup [node]
-    (let [contents (clj-contents node)
+  (to-hiccup' [node opts]
+    (let [contents (clj-contents node opts)
           key (if-let [nd (.referenceKey node)]
-                (str/join (to-hiccup nd)) (str/join contents))]
+                (str/join (to-hiccup' nd opts)) (str/join contents))]
      (if-let [ref (*references* key)]
        [:a (a-attrs {:href (.getUrl ref) :title (.getTitle ref)}) contents]
        (cons "[" (concat contents
@@ -173,5 +177,5 @@
                              ["]"])))))))
 
 (extend-type ReferenceNode AstToHiccup
-  (to-hiccup [node]
+  (to-hiccup' [node opts]
     nil))

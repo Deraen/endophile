@@ -69,85 +69,97 @@
 (declare ^:dynamic *references*)
 
 (defprotocol AstToClj
-  (to-clj [node]))
+  (to-clj' [node opts]))
 
-(defn clj-contents [node]
-  (doall (flatten (map to-clj (seq (.getChildren node))))))
+(defn to-clj
+  ([node] (to-clj' node {}))
+  ([node opts] (to-clj' node opts)))
+
+(defn clj-contents [node opts]
+  (doall (flatten (map #(to-clj' % opts) (seq (.getChildren node))))))
 
 (extend-type SuperNode AstToClj
-  (to-clj [node] (clj-contents node)))
+  (to-clj' [node opts] (clj-contents node opts)))
 
 (extend-type RootNode AstToClj
-  (to-clj [node]
+  (to-clj' [node opts]
     (if (bound? #'*references*)
-      (clj-contents node)
+      (clj-contents node opts)
       (binding [*references*
                 (into {}
                       (for [ref (.getReferences node)]
-                        [(first (clj-contents ref)) ref]))]
-        (clj-contents node)))))
+                        [(first (clj-contents ref opts)) ref]))]
+        (clj-contents node opts)))))
 
 (extend-type BulletListNode AstToClj
-  (to-clj [node] {:tag :ul
-                  :content (clj-contents node)}))
+  (to-clj' [node opts] {:tag :ul
+                  :content (clj-contents node opts)}))
 
 (extend-type ListItemNode AstToClj
-  (to-clj [node] {:tag :li :content (clj-contents node)}))
+  (to-clj' [node opts] {:tag :li :content (clj-contents node opts)}))
 
 (extend-type TextNode AstToClj
   ;; html-snippet converts entities back into text
-  (to-clj [node] (first (html/html-snippet (.getText node)))))
+  (to-clj' [node opts] (first (html/html-snippet (.getText node)))))
 
 (extend-type AutoLinkNode AstToClj
-  (to-clj [node] {:tag :a
-                  :attrs (a-attrs {:href (.getText node)})
-                  :content (list (.getText node))}))
+  (to-clj' [node opts]
+    {:tag :a
+     :attrs (a-attrs {:href (.getText node)})
+     :content (list (.getText node))}))
 
 (extend-type BlockQuoteNode AstToClj
-  (to-clj [node] {:tag :blockquote
-                  :content (clj-contents node)}))
+  (to-clj' [node opts]
+    {:tag :blockquote
+     :content (clj-contents node opts)}))
 
 (extend-type CodeNode AstToClj
-  (to-clj [node] {:tag :code
-                  :content (list (.getText node))}))
+  (to-clj' [node opts]
+    {:tag :code
+     :content (list (.getText node))}))
 
 (extend-type ExpImageNode AstToClj
-  (to-clj [node] {:tag :img
-                  :attrs (a-attrs
-                          {:src (.url node)
-                           :title (.title node)
-                           :alt (str/join (clj-contents node))})}))
+  (to-clj' [node opts]
+    {:tag :img
+     :attrs (a-attrs
+              {:src (.url node)
+               :title (.title node)
+               :alt (str/join (clj-contents node opts))})}))
 
 (extend-type ExpLinkNode AstToClj
-  (to-clj [node] {:tag :a
-                  :attrs (a-attrs {:href (.url node) :title (.title node)})
-                  :content (clj-contents node)}))
+  (to-clj' [node opts]
+    {:tag :a
+     :attrs (a-attrs {:href (.url node) :title (.title node)})
+     :content (clj-contents node opts)}))
 
 (extend-type HeaderNode AstToClj
-  (to-clj [node] {:tag (keyword (str "h" (.getLevel node)))
-                  :content (clj-contents node)}))
-
+  (to-clj' [node opts]
+    {:tag (keyword (str "h" (.getLevel node)))
+     :content (clj-contents node opts)}))
 
 (extend-type HtmlBlockNode AstToClj
-  (to-clj [node]
+  (to-clj' [node opts]
     (html/html-snippet (.getText node))))
 
 (extend-type InlineHtmlNode AstToClj
-  (to-clj [node] (html/html-snippet (.getText node))))
+  (to-clj' [node opts]
+    (html/html-snippet (.getText node))))
 
 
 (extend-type MailLinkNode AstToClj
-  (to-clj [node] {:tag :a
+  (to-clj' [node opts] {:tag :a
                   :attrs (a-attrs {:href (str "mailto:" (.getText node))})
-                  :content (clj-contents node)}))
+                  :content (clj-contents node opts)}))
 
 (extend-type OrderedListNode AstToClj
-  (to-clj [node] {:tag :ol
-                  :content (clj-contents node)}))
+  (to-clj' [node opts]
+    {:tag :ol
+     :content (clj-contents node opts)}))
 
 (extend-type ParaNode AstToClj
-  (to-clj [node] {:tag :p
-                  :content (clj-contents node)}))
+  (to-clj' [node opts]
+    {:tag :p
+     :content (clj-contents node opts)}))
 
 (def qts
   {QuotedNode$Type/DoubleAngle [\u00AB \u00BB]
@@ -155,10 +167,11 @@
    QuotedNode$Type/Single [\u2018 \u2019]})
 
 (extend-type QuotedNode AstToClj
-  (to-clj [node] {:tag :p
-                  :content (flatten
-                            (let [q (qts (.getType node))]
-                              (list (q 0) (clj-contents node) (q 1))))}))
+  (to-clj' [node opts]
+    {:tag :p
+     :content (flatten
+                (let [q (qts (.getType node))]
+                  (list (q 0) (clj-contents node opts) (q 1))))}))
 
 (def simple-nodes
   {SimpleNode$Type/Apostrophe \'
@@ -170,30 +183,30 @@
    SimpleNode$Type/Nbsp \u00A0})
 
 (extend-type SimpleNode AstToClj
-  (to-clj [node] (simple-nodes (.getType node))))
-
+  (to-clj' [node opts] (simple-nodes (.getType node))))
 
 (extend-type SpecialTextNode AstToClj
-  (to-clj [node] (.getText node)))
+  (to-clj' [node opts] (.getText node)))
 
 (extend-type StrongEmphSuperNode AstToClj
-  (to-clj [node] {:tag (if (.isStrong node) :strong :em)
-                  :content (clj-contents node)}))
+  (to-clj' [node opts]
+    {:tag (if (.isStrong node) :strong :em)
+     :content (clj-contents node opts)}))
 
 (extend-type StrikeNode AstToClj
-  (to-clj [node]
+  (to-clj' [node opts]
     {:tag :del
-     :content (clj-contents node)}))
+     :content (clj-contents node opts)}))
 
 (extend-type AnchorLinkNode AstToClj
-  (to-clj [node]
+  (to-clj' [node opts]
     {:tag :a
      :attrs {:name (.getName node)
              :href (str "#" (.getName node))}
      :content (list (.getText node))}))
 
 (extend-type VerbatimNode AstToClj
-  (to-clj [node]
+  (to-clj' [node opts]
     {:tag :pre
      :content (list (merge {:tag :code
                             :content (list (.getText node))}
@@ -203,10 +216,10 @@
                                {:attrs {:class c}}))))}))
 
 (extend-type RefLinkNode AstToClj
-  (to-clj [node]
-    (let [contents (clj-contents node)
+  (to-clj' [node opts]
+    (let [contents (clj-contents node opts)
           key (if-let [nd (.referenceKey node)]
-                (first (to-clj nd)) (apply str contents))]
+                (first (to-clj' nd opts)) (apply str contents))]
      (if-let [ref (*references* key)]
        {:tag :a :attrs (a-attrs {:href (.getUrl ref) :title (.getTitle ref)})
         :content contents}
@@ -218,21 +231,23 @@
                              ["]"])))))))
 
 (extend-type ReferenceNode AstToClj
-  (to-clj [node]
+  (to-clj' [node opts]
     ""))
 
 (defn html-string [clj-md]
   (str/join (html/emit* clj-md)))
 
-(defn to-html [parsed]
-  (html-string
-   {:tag :html
+(defn to-html
+  ([parsed] (to-html parsed {}))
+  ([parsed opts]
+   (html-string
+     {:tag :html
       :content
       (list
-       {:tag :head :content
-        (list {:tag :meta :attrs {:charset "utf-8"}})}
-       {:tag :body
-        :content (to-clj parsed)})}))
+        {:tag :head :content
+         (list {:tag :meta :attrs {:charset "utf-8"}})}
+        {:tag :body
+         :content (to-clj' parsed opts)})})))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
