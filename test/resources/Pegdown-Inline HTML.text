@@ -3,6 +3,8 @@ A paragraph with a <a href="http://example.org">inline html</a>.
 > Quote
 <cite>author</cite>
 
-Multiple <strong>inline <em>elements</em></strong>
+Multiple <strong>inline</strong> <em>elements</em>
+
+Nested <strong>inline <em>elements</em></strong>
 
 Missing <strong>end <em>tags
