@@ -1,14 +1,16 @@
 (ns endophile.hiccup
   (:require [net.cgrand.enlive-html :as html]
             [clojure.string :as str]
-            [endophile.utils :refer :all])
+            [endophile.utils :refer :all]
+            [endophile.core :refer [wrap-inline-html]])
   (:import [org.pegdown.ast
             RootNode BulletListNode ListItemNode SuperNode TextNode RefLinkNode
             AutoLinkNode BlockQuoteNode CodeNode TextNode ExpImageNode
             ExpLinkNode HeaderNode HtmlBlockNode InlineHtmlNode MailLinkNode
             OrderedListNode ParaNode QuotedNode QuotedNode$Type SimpleNode
             SimpleNode$Type SpecialTextNode StrongEmphSuperNode VerbatimNode
-            ReferenceNode StrikeNode]))
+            ReferenceNode StrikeNode]
+           [endophile.core InlineHtmlWrap]))
 
 (defn- sequential-but-not-vector? [s]
   (and (sequential? s) (not (vector? s))))
@@ -38,7 +40,13 @@
   (to-hiccup [node]))
 
 (defn clj-contents [node]
-  (doall (flatten* (map to-hiccup (seq (.getChildren node))))))
+  (->> node
+       (.getChildren)
+       seq
+       wrap-inline-html
+       (map to-hiccup)
+       flatten*
+       doall))
 
 (extend-type SuperNode AstToHiccup
   (to-hiccup [node] (clj-contents node)))
@@ -97,6 +105,10 @@
 (extend-type InlineHtmlNode AstToHiccup
   (to-hiccup [node]
     (html-snippet (.getText node))))
+
+(extend-type InlineHtmlWrap AstToHiccup
+  (to-hiccup [node]
+    (into (first (html-snippet (.getText (.start node)))) (clj-contents (SuperNode. (.children node))))))
 
 (extend-type MailLinkNode AstToHiccup
   (to-hiccup [node]

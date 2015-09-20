@@ -71,8 +71,53 @@
 (defprotocol AstToClj
   (to-clj [node]))
 
+(defn- inline-html? [x]
+  (instance? InlineHtmlNode x))
+
+(defn end-tag [k]
+  (str "</" (name k) ">"))
+
+(defrecord InlineHtmlWrap [start-tag start children])
+
+(defn add [this el]
+  (InlineHtmlWrap. (.start-tag this) (.start this) (cons el (.children this))))
+
+(defn output-tag [this]
+  (InlineHtmlWrap. (.start-tag this) (.start this) (reverse (.children this))))
+
+(defn wrap-inline-html [children]
+  (loop [children children
+         out (list)
+         tag nil]
+    (if-let [f (first children)]
+      (if (inline-html? f)
+        (let [start (first (html/html-snippet (.getText f)))]
+          (if tag
+            (if (= (end-tag (.start-tag tag)) (.getText f))
+              ; Close current tag
+              (recur (rest children) (cons (output-tag tag) out) nil)
+              ; Append to current tag
+              (recur (rest children) out (add tag f)))
+            (if start
+              ; Start new tag
+              (recur (rest children) out (InlineHtmlWrap. (:tag start) f (list)))
+              ; Append to output as inline html couldn't be parsed
+              (recur (rest children) (cons f out) tag))))
+        (if tag
+          (recur (rest children) out (add tag f))
+          (recur (rest children) (cons f out) tag)))
+      (if tag
+        (reverse (cons (output-tag tag) out))
+        (reverse out)))))
+
 (defn clj-contents [node]
-  (doall (flatten (map to-clj (seq (.getChildren node))))))
+  (->> node
+       (.getChildren)
+       seq
+       wrap-inline-html
+       (map to-clj)
+       flatten
+       doall))
 
 (extend-type SuperNode AstToClj
   (to-clj [node] (clj-contents node)))
@@ -134,6 +179,10 @@
 
 (extend-type InlineHtmlNode AstToClj
   (to-clj [node] (html/html-snippet (.getText node))))
+
+(extend-type InlineHtmlWrap AstToClj
+  (to-clj [node] (let [tag (first (html/html-snippet (.getText (.start node))))]
+                   (assoc tag :content (clj-contents (SuperNode. (.children node)))))))
 
 
 (extend-type MailLinkNode AstToClj

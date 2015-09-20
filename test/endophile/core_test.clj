@@ -7,7 +7,9 @@
             [net.cgrand.enlive-html :as html]
             [endophile.hiccup :as md2h]
             [endophile.utils :refer :all])
-  (:import [org.pegdown Extensions]))
+  (:import [org.pegdown Extensions]
+           [org.pegdown.ast SuperNode InlineHtmlNode ParaNode TextNode]
+           [endophile.core InlineHtmlWrap]))
 
 (def default-extensions (bit-or Extensions/AUTOLINKS Extensions/FENCED_CODE_BLOCKS Extensions/STRIKETHROUGH))
 
@@ -64,3 +66,8 @@
 (deftest mp-options
   (is (= [{:tag :p :content ["~" "~" "foo" "~" "~"]}]
          (to-clj (mp "~~foo~~" {:extensions {:strikethrough false}})))))
+
+(deftest wrap-inline-html-test
+  ; FIXME: Very quick and dirty object equality check
+  (is (= (pr-str (list (TextNode. "A paragraph with") (InlineHtmlWrap. :a (InlineHtmlNode. "<a href=\"http://example.org\">") (list (TextNode. "inline html"))) (TextNode. ".")))
+         (pr-str (wrap-inline-html (list (TextNode. "A paragraph with") (InlineHtmlNode. "<a href=\"http://example.org\">") (TextNode. "inline html") (InlineHtmlNode. "</a>") (TextNode. ".")))))))
